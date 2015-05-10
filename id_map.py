@@ -1,8 +1,11 @@
 __author__ = 'Ryan Sheffer'
 __credits__ = ["Id Software"]
 
+import os
 import re
 import math
+import copy
+from PIL import Image
 
 '''
 ===========================================================================
@@ -32,6 +35,10 @@ class IdMath:
     Q_PI = 3.14159265358979323846
 
     @staticmethod
+    def Vec3Zero():
+        return copy.deepcopy(vec3_zero)
+
+    @staticmethod
     def VectorMA(va, scale, vb, vc):
         vc[0] = va[0] + scale * vb[0]
         vc[1] = va[1] + scale * vb[1]
@@ -50,7 +57,7 @@ class IdMath:
     @staticmethod
     def VectorCompare (v1, v2):
         for i in range(0, 3):
-            if math.fabs(v1[i] - v2[i]) > EQUAL_EPSILON:
+            if math.fabs(v1[i] - v2[i]) > IdMath.EQUAL_EPSILON:
                 return False
 
         return True
@@ -102,6 +109,7 @@ class IdMath:
 
     @staticmethod
     def ClipWinding(input, split, keepon):
+        # keep some lists of a max number of possible points
         dists = [0 for x in range(IdMath.MAX_POINTS_ON_WINDING)]
         sides = [0 for x in range(IdMath.MAX_POINTS_ON_WINDING)]
         counts = [0, 0, 0]
@@ -133,8 +141,7 @@ class IdMath:
             return input
 
         maxpts = input.numpoints + 4;	# can't use counts[0] + 2 because of fp grouping errors
-        neww = Id2Map.Winding()
-        neww.maxpoints = maxpts
+        neww = Id2Map.Winding(maxpts)
 
         for i in range(0, input.numpoints):
             p1 = input.points[i]
@@ -155,6 +162,7 @@ class IdMath:
             p2 = input.points[(i + 1) % input.numpoints];
 
             dot = dists[i] / (dists[i] - dists[i + 1]);
+            mid = [0.0, 0.0, 0.0]
             for j in range(0, 3):
                 # avoid round off error when possible
                 if split.normal[j] == 1:
@@ -256,17 +264,13 @@ class IdMath:
         return out_vecs
 
     @staticmethod
-    def EmitTextureCoordinates(xyzst, f):
-        #float	s, t, ns, nt;
-        #float	ang, sinv, cosv;
-        #vec3_t	vecs[2];
-        #texdef_t	*td;
+    def EmitTextureCoordinates(xyzst, texture, face):
         vecs = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
         # get natural texture axis
-        IdMath.TextureAxisFromPlane(f.plane, vecs[0], vecs[1])
+        IdMath.TextureAxisFromPlane(face.plane, vecs[0], vecs[1])
 
-        td = f.texdef
+        td = face.texdef
 
         ang = td.rotate / 180.0 * IdMath.Q_PI
         sinv = math.sin(ang)
@@ -287,8 +291,8 @@ class IdMath:
         t = nt / td.scale[1] + td.shift[1]
 
         # gl scales everything from 0 to 1
-        s /= 256.0 #q->width (TODO)
-        t /= 256.0 #q->height (TODO)
+        s /= t.width
+        t /= t.height
 
         xyzst[3] = s
         xyzst[4] = t
@@ -300,14 +304,18 @@ class Id2Map:
     It is designed to parse an Id Tech 2 map file and keep a collection
     of entity information and brush data.
     """
+    textures_path = None
+
     def __init__(self):
         self.entities = []
 
-    def parse_map_file(self, map_file_name):
+    def parse_map_file(self, map_file_name, textures_path = None):
         """
         Parses a map file
         :param map_file_name: The name of the file to parse
         """
+        # this is an optional path. If it is not supplied, the texture UVs are not generated.
+        Id2Map.textures_path = textures_path
         self.entities = []
         map_file = open(map_file_name, 'rb')
         file_lines = map_file.readlines()
@@ -329,9 +337,18 @@ class Id2Map:
                     self.entities.append(ent)
                     entity_lines = []
 
+    class Texture:
+        """
+        Information about the texture on a surface. This information comes from the texture itself.
+        """
+        def __init__(self, width, height, texture_path):
+            self.height = height
+            self.width = width
+            self.texture_path = texture_path
+
     class TexDef:
         """
-        Information about how the texture should be presented
+        Information about how the texture should be rendered on a surface
         """
         def __init__(self):
             self.name = ''
@@ -357,26 +374,28 @@ class Id2Map:
         Plane Definition
         """
         def __init__(self):
-            self.normal = [0, 0, 0]
-            self.dist = 0
+            self.normal = [0.0, 0.0, 0.0]
+            self.dist = 0.0
             self.type = 0
 
         def set_plane(self, plane_points):
             """
             From three points, calculate the plane
             """
-            edge_vecs = []
+            t1 = [0.0, 0.0, 0.0]
+            t2 = [0.0, 0.0, 0.0]
+            t3 = [0.0, 0.0, 0.0]
             for i in range(0, 3):
-                edge_vecs[i] = plane_points[0][i] - plane_points[1][i]
-                edge_vecs[i] = plane_points[2][i] - plane_points[1][i]
-                edge_vecs[i] = plane_points[1][i]
+                t1[i] = plane_points[0][i] - plane_points[1][i]
+                t2[i] = plane_points[2][i] - plane_points[1][i]
+                t3[i] = plane_points[1][i]
 
             IdMath.CrossProduct(t1, t2, self.normal)
             if IdMath.VectorCompare(self.normal, IdMath.vec3_zero):
                 raise Exception('WARNING: brush plane with no normal')
 
             IdMath.VectorNormalize(self.normal)
-            self.dist = IdMath.DotProduct(edge_vecs[2], self.normal)
+            self.dist = IdMath.DotProduct(t3, self.normal)
 
     class Winding:
         BOGUS_RANGE = 18000
@@ -384,29 +403,20 @@ class Id2Map:
         """
         From the plane data, the points that make up the brush
         """
-        def __init__(self):
+        def __init__(self, maxpoints = 8):
             self.numpoints = 0
-            self.maxpoints = 0
-            self.points = [[0, 0, 0, 0, 0], # xyzst
-                           [0, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0],
-                           [0, 0, 0, 0, 0]]
+            self.maxpoints = maxpoints
+            self.points = [] # list of xyzst lists
+            for i in range(0, maxpoints):
+                self.points.append([0.0, 0.0, 0.0, 0.0, 0.0])
+
 
         @staticmethod
         def base_poly_for_plane(ref_plane):
             """ Get a poly that covers an effectively infinite area """
-            max = 0.0
-            v = 0.0
-
             org = [0.0, 0.0, 0.0]
             vright = [0.0, 0.0, 0.0]
             vup = [0.0, 0.0, 0.0]
-
-            w = None
 
             # find the major axis
             max = -Id2Map.Winding.BOGUS_RANGE
@@ -420,12 +430,10 @@ class Id2Map:
             if x == -1:
                 raise Exception('BasePolyForPlane: no axis found')
 
-            if x == 0:
-                pass
-            elif x == 1:
-                vup[2] = 1
+            if x == 0 or x == 1:
+                vup[2] = 1.0
             elif x == 2:
-                vup[0] = 1
+                vup[0] = 1.0
 
             v = IdMath.DotProduct(vup, ref_plane.normal)
             IdMath.VectorMA(vup, -v, ref_plane.normal, vup)
@@ -435,12 +443,11 @@ class Id2Map:
 
             IdMath.CrossProduct(vup, ref_plane.normal, vright)
 
-            IdMath.VectorScale(vup, 8192, vup);
-            IdMath.VectorScale(vright, 8192, vright);
+            IdMath.VectorScale(vup, 8192.0, vup);
+            IdMath.VectorScale(vright, 8192.0, vright);
 
             # project a really big axis aligned box onto the plane
-            w = Id2Map.Winding()
-            w.maxpoints = 4
+            w = Id2Map.Winding(4)
             w.numpoints = 4
 
             IdMath.VectorSubtract(org, vright, w.points[0])
@@ -463,8 +470,9 @@ class Id2Map:
         Face Definition
         """
         def __init__(self):
-            self.planepts = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
-            self.texdef = Id2Map.TexDef()
+            self.planepts = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+            self.texdef = None
+            self.texture = None
             self.plane = Id2Map.Plane()
             self.winding = None
             self.color = [0, 0, 0]
@@ -473,7 +481,7 @@ class Id2Map:
             i = 0
             for var in vec_str.split(' '):
                 # As per Ids Brush_SnapPlanepts call, we add 0.5 and floor the result. This is the same as rounding.
-                self.planepts[point_index][i] = math.floor(float(var + 0.5))
+                self.planepts[point_index][i] = math.floor(float(var) + 0.5)
                 i += 1
 
     class Brush:
@@ -481,8 +489,8 @@ class Id2Map:
         Brush Definition
         """
         def __init__(self):
-            self.mins = [99999, 99999, 99999]
-            self.maxs = [-99999, -99999, -99999]
+            self.mins = [99999.0, 99999.0, 99999.0]
+            self.maxs = [-99999.0, -99999.0, -99999.0]
             self.faces = []
 
         def add_face(self, face_line):
@@ -503,8 +511,20 @@ class Id2Map:
                 # create the plane from the points
                 face.plane.set_plane(face.planepts)
 
-                # Setup the texture
-                face.texdef.setup_tex_def(groups[3], groups[4].split(' '))
+                # If the texture directory was supplied, find the texture to get some important
+                if Id2Map.textures_path is not None:
+                    texture_path = os.path.join(Id2Map.textures_path, groups[3])
+                    texture_path += '.tga'
+                    if os.path.exists(texture_path):
+                        # Lazily open the texture and grab the size information
+                        fp = open(texture_path)
+                        im = Image.open(fp)
+                        face.texture = Id2Map.Texture(im.size[0], im.size[1], texture_path)
+                        fp.close()
+
+                        # Setup the texture
+                        face.texdef = Id2Map.TexDef()
+                        face.texdef.setup_tex_def(groups[3], groups[4].split(' '))
 
                 # add to face list
                 self.faces.append(face)
@@ -519,7 +539,7 @@ class Id2Map:
                     continue
 
                 # add to bounding box
-                for i in range(0, w.numpoints):
+                for i in range(0, face.winding.numpoints):
                     for j in range(0, 3):
                         v = face.winding.points[i][j];
                         if v > self.maxs[j]:
@@ -527,11 +547,14 @@ class Id2Map:
                         if v < self.mins[j]:
                             self.mins[j] = v
 
-                # setup s and t vectors, and set color
-                out_vecs = IdMath.BeginTexturingFace(self, face)
+                # If the tex def and texture exist, we have enough information to generate their UV data
+                if face.texdef is not None and face.texture is not None:
+                    # setup s and t vectors, and set color
+                    # TODO: I am not sure what this does... Even in the original QE4 code it seems pointless...
+                    #out_vecs = IdMath.BeginTexturingFace(self, face)
 
-                for i in range(0, face.winding.numpoints):
-                    IdMath.EmitTextureCoordinates(face.winding.points[i], face)
+                    for i in range(0, face.winding.numpoints):
+                        IdMath.EmitTextureCoordinates(face.winding.points[i], face.texture, face)
 
         def make_face_winding(self, face):
             """
@@ -552,7 +575,8 @@ class Id2Map:
                     past = True
                     continue
 
-                if IdMath.DotProduct(face.plane.normal, clip.plane.normal) > 0.999 and math.fabs(face.plane.dist - clip.plane.dist) < 0.01:
+                if IdMath.DotProduct(face.plane.normal, clip.plane.normal) > 0.999 and \
+                                math.fabs(face.plane.dist - clip.plane.dist) < 0.01:
                     # identical plane, use the later one
                     if past:
                         return None;
@@ -594,7 +618,7 @@ class Id2Map:
                     cur_brush.add_face(line)
                 elif line[0] == '{':
                     if struc_level == 1:
-                        self.brushes.append(Brush())
+                        self.brushes.append(Id2Map.Brush())
                     struc_level += 1
                 elif line[0] == '}':
                     struc_level -= 1

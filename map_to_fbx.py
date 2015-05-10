@@ -70,13 +70,21 @@ def get_ascii_format_index(fbx_manager):
 if __name__ == '__main__':
 
     # Get the necessary arguments
-    argParser = optparse.OptionParser(usage='usage: %prog [options]')
-    argParser.add_option('-o', '--output', action='store', type='string', dest='output', default='default_out.fbx',
+    argParser = optparse.OptionParser(usage='usage: %prog -i [input dir] -o [output dir] [options]', version="%prog 0.1")
+    argParser.add_option('-o', '--output', action='store', type='string', dest='output', default=False,
                          help='FBX output file name')
     argParser.add_option('-i', '--input', action='store', type='string', dest='input', default=False,
-                         help='The VtMR map file')
+                         help='The Quake 2 or VtMR map file')
+    argParser.add_option('-t', '--textures', action='store', type='string', dest='textures', default=None,
+                         help='The textures folder (optional)')
 
     (options, args) = argParser.parse_args()
+
+    if(options.input == False or options.output == False):
+        print('Input and Output directories required to run this software!')
+        argParser.print_version()
+        argParser.print_help()
+        quit()
 
     print('Collecting brushes from {0} and outputting into {1}'.format(options.input, options.output))
 
@@ -86,7 +94,7 @@ if __name__ == '__main__':
 
     # Collect all of the brushes from the map file
     map_data = id_map.Id2Map()
-    map_data.parse_map_file(options.input)
+    map_data.parse_map_file(options.input, options.textures)
 
     # Create a scene node per brush containing the brushes UV'd mesh
     for entity in map_data.entities:

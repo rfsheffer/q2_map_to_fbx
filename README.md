@@ -19,7 +19,7 @@ I downloaded the quake 2 tools source code and used the QE4 source code to conve
 I used the Autodesk python FBX SDK to create the FBX file.
 
 ## What you need:
-- A map file created with the embrace map editor
-- Textures found in the VtMR game archives
+- A map file created with a QuakeEd4 based map editor (Embrace, QE4, QERadiant, WorldCraft)
+- Textures found in the VtMR texture archive or the Quake 2 texture archive
 - The FBX SDK and FBX python SDK installed
-- PIL (Python Image Library)
+- Python Pillow Imaging Library 2.8.1 or greater
