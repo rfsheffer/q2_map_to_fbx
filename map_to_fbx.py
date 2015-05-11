@@ -77,6 +77,8 @@ if __name__ == '__main__':
                          help='The Quake 2 or VtMR map file')
     argParser.add_option('-t', '--textures', action='store', type='string', dest='textures', default=None,
                          help='The textures folder (optional)')
+    argParser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False,
+                         help='Spews information about the process (takes more time)')
 
     (options, args) = argParser.parse_args()
 
@@ -86,16 +88,21 @@ if __name__ == '__main__':
         argParser.print_help()
         quit()
 
-    print('Collecting brushes from {0} and outputting into {1}'.format(options.input, options.output))
+    verbose = options.verbose
+
+    if verbose:
+        print('Collecting brushes from {0} and outputting into {1}'.format(options.input, options.output))
 
     # Create the required FBX SDK data structures.
     g_fbx_manager = fbx.FbxManager.Create()
     g_fbx_scene = fbx.FbxScene.Create(g_fbx_manager, '')
 
+    print('Collecting entities from map file and creating polygons...')
     # Collect all of the brushes from the map file
     map_data = id_map.Id2Map()
-    map_data.parse_map_file(options.input, options.textures)
+    map_data.parse_map_file(options.input, verbose, options.textures)
 
+    print('{0} entities parsed, creating fbx'.format(len(map_data.entities)))
     # Create a scene node per brush containing the brushes UV'd mesh
     for entity in map_data.entities:
         add_entity_to_scene(g_fbx_scene, entity, 0)

@@ -193,13 +193,13 @@ class IdMath:
         bestaxis = 0;
 
         for i in range(0, 6):
-            dot = IdMath.DotProduct(pln.normal, baseaxis[i * 3]);
+            dot = IdMath.DotProduct(pln.normal, IdMath.baseaxis[i * 3]);
             if dot > best:
                 best = dot
                 bestaxis = i
 
-        IdMath.VectorCopy(baseaxis[bestaxis * 3 + 1], xv);
-        IdMath.VectorCopy(baseaxis[bestaxis * 3 + 2], yv);
+        IdMath.VectorCopy(IdMath.baseaxis[bestaxis * 3 + 1], xv);
+        IdMath.VectorCopy(IdMath.baseaxis[bestaxis * 3 + 2], yv);
 
     @staticmethod
     def BeginTexturingFace(b, f):
@@ -291,8 +291,8 @@ class IdMath:
         t = nt / td.scale[1] + td.shift[1]
 
         # gl scales everything from 0 to 1
-        s /= t.width
-        t /= t.height
+        s /= texture.width
+        t /= texture.height
 
         xyzst[3] = s
         xyzst[4] = t
@@ -305,17 +305,19 @@ class Id2Map:
     of entity information and brush data.
     """
     textures_path = None
+    verbose = False
 
     def __init__(self):
         self.entities = []
 
-    def parse_map_file(self, map_file_name, textures_path = None):
+    def parse_map_file(self, map_file_name, verbose = False, textures_path = None):
         """
         Parses a map file
         :param map_file_name: The name of the file to parse
         """
         # this is an optional path. If it is not supplied, the texture UVs are not generated.
         Id2Map.textures_path = textures_path
+        Id2Map.verbose = verbose
         self.entities = []
         map_file = open(map_file_name, 'rb')
         file_lines = map_file.readlines()
@@ -354,7 +356,7 @@ class Id2Map:
             self.name = ''
             self.shift = [0, 0]
             self.rotate = 0
-            self.scale = [0, 0]
+            self.scale = [0.0, 0.0]
             self.contents = 0
             self.flags = 0
             self.value = 0
@@ -363,7 +365,7 @@ class Id2Map:
             self.name = tex_name
             self.shift = (int(tex_params[0]), int(tex_params[1]))
             self.rotate = int(tex_params[2])
-            self.scale = (int(tex_params[3]), int(tex_params[4]))
+            self.scale = (float(tex_params[3]), float(tex_params[4]))
             if len(tex_params) > 5:
                 self.contents = int(tex_params[5])
                 self.flags = int(tex_params[6])
@@ -525,6 +527,8 @@ class Id2Map:
                         # Setup the texture
                         face.texdef = Id2Map.TexDef()
                         face.texdef.setup_tex_def(groups[3], groups[4].split(' '))
+                    elif groups[3] != 'portal':
+                        raise Exception('Unable to find texture {0}'.format(texture_path))
 
                 # add to face list
                 self.faces.append(face)
@@ -593,8 +597,8 @@ class Id2Map:
             if w.numpoints < 3:
                 w = None
 
-            if w == None:
-                print('unused plane')
+            if w == None and Id2Map.verbose:
+                print('unused plane...')
 
             return w
 
@@ -621,10 +625,11 @@ class Id2Map:
                         self.brushes.append(Id2Map.Brush())
                     struc_level += 1
                 elif line[0] == '}':
+                    if struc_level == 2:
+                        # Finished parsing brush, create the visible polygons from the planes
+                        cur_brush = self.brushes[len(self.brushes) - 1]
+                        cur_brush.make_face_windings()
                     struc_level -= 1
-                    # Finished parsing brush, create the visible polygons from the planes
-                    cur_brush = self.brushes[len(self.brushes) - 1]
-                    cur_brush.make_face_windings()
                 else:
                     # Check for a comment line
                     num_forward_slashes = 0
@@ -640,5 +645,5 @@ class Id2Map:
                             self.properties[groups[0]] = groups[1]
                         else:
                             raise Exception('WARNING: Could not parse property line {0}'.format(line))
-                    else:
-                        print('skipping comment {0}'.format(line))
+                    elif Id2Map.verbose:
+                        print(line)
