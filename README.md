@@ -1,13 +1,11 @@
-# Vampire the Masquerade Redemption Map to FBX
+# Quake 2 Map to FBX
 
-### NOTE: This is a WIP. I will remove this line once the program actually works
+### NOTE: This is a WIP. The program reads map files and creates the polygons but does not yet export to FBX. That will be coming very soon and I will remove this note.
 
-A simple program for exporting the VtMR map files (Quake 2 map format) to FBX.
+A simple program for exporting Quake 2 map format files to FBX.
 FBX is a data exchange format commonly used by modern game engines and 3D modeling software.
 This tool is being created just for fun. If you are a game hacker who wants to mess around with the Vampire maps
 in a 3D software, this is the tool for you.
-
-This MIGHT also export Quake 2 maps to FBX format. If it doesn't, the amount of work required to do so would be small.
 
 ## Features:
 - Exports all brushes into polygonal objects
