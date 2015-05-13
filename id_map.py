@@ -109,13 +109,15 @@ class IdMath:
 
     @staticmethod
     def ClipWinding(input, split, keepon):
-        # keep some lists of a max number of possible points
-        dists = [0 for x in range(IdMath.MAX_POINTS_ON_WINDING)]
-        sides = [0 for x in range(IdMath.MAX_POINTS_ON_WINDING)]
+        # We cache off the sides the points exist in relation to the plane, there is a max number of points per poly.
+        dists = [0 for x in range(IdMath.MAX_POINTS_ON_WINDING)] # the distance from the plane to the point
+        sides = [0 for x in range(IdMath.MAX_POINTS_ON_WINDING)] # which side of the plane the point is on
         counts = [0, 0, 0]
 
-        # determine sides for each point
+        # Id: determine sides for each point
         for i in range(0, input.numpoints):
+            # Get the distance to the plane from the point, and subtract the split normal distance
+            # to get the translated true distance.
             dot = IdMath.DotProduct(input.points[i], split.normal)
             dot -= split.dist
             dists[i] = dot
@@ -128,46 +130,60 @@ class IdMath:
 
             counts[sides[i]] += 1
 
-        sides[i] = sides[0];
-        dists[i] = dists[0];
+        # We complete the polygon loop here by assigning the last point to the first point
+        sides[input.numpoints] = sides[0];
+        dists[input.numpoints] = dists[0];
 
+        # If all points lie directly on the planes surface and we should keep them, return them now.
         if keepon and counts[0] == 0 and counts[1] == 0:
             return input
 
+        # If no points are on the front, they are all clipped. Return none.
         if counts[0] == 0:
+            if Id2Map.verbose:
+                print('no points lie on the front side of the clipping plane...')
             return None
 
+        # If all points are on the front, clip none. Return input.
         if counts[1] == 0:
             return input
 
-        maxpts = input.numpoints + 4;	# can't use counts[0] + 2 because of fp grouping errors
+        # Create a new winding (polygon) with the potential for 4 new points from the clipping we are about to do
+        maxpts = input.numpoints + 4;	# Id: can't use counts[0] + 2 because of fp grouping errors
         neww = Id2Map.Winding(maxpts)
 
         for i in range(0, input.numpoints):
             p1 = input.points[i]
 
+            # Copy all on plane surface points directly to the new points list
             if sides[i] == IdMath.SIDE_ON:
                 IdMath.VectorCopy(p1, neww.points[neww.numpoints])
                 neww.numpoints += 1
                 continue
 
+            # If this point is on the front, it should be kept, so put it in the new points list
             if sides[i] == IdMath.SIDE_FRONT:
                 IdMath.VectorCopy(p1, neww.points[neww.numpoints])
                 neww.numpoints += 1
 
+            # If the next point is on side, or the next points side is the same as this point, no clipping required
             if sides[i + 1] == IdMath.SIDE_ON or sides[i + 1] == sides[i]:
                 continue
 
-            # generate a split point
+            # Id: generate a split point
+            # If the next point is over the end, we want the first point, so use mod to wrap the index back to 0
             p2 = input.points[(i + 1) % input.numpoints];
 
+            # determine the fraction of the distance to the plane from point 1 to point 2
+            # we can then multiply the vector from point 1 to point 2 by the fraction, and add
+            # back point 1, to get the position of the split
             dot = dists[i] / (dists[i] - dists[i + 1]);
             mid = [0.0, 0.0, 0.0]
             for j in range(0, 3):
-                # avoid round off error when possible
-                if split.normal[j] == 1:
+                # Id: avoid round off error when possible
+                if split.normal[j] == 1.0:
                     mid[j] = split.dist
-                elif split.normal[j] == -1:
+                elif split.normal[j] == -1.0:
                     mid[j] = -split.dist
                 else:
                     mid[j] = p1[j] + dot * (p2[j] - p1[j])
@@ -340,6 +356,7 @@ class Id2Map:
                     entity_lines = []
 
     class Texture:
+        texture_db = {}
         """
         Information about the texture on a surface. This information comes from the texture itself.
         """
@@ -518,11 +535,16 @@ class Id2Map:
                     texture_path = os.path.join(Id2Map.textures_path, groups[3])
                     texture_path += '.tga'
                     if os.path.exists(texture_path):
-                        # Lazily open the texture and grab the size information
-                        fp = open(texture_path)
-                        im = Image.open(fp)
-                        face.texture = Id2Map.Texture(im.size[0], im.size[1], texture_path)
-                        fp.close()
+                        # cache off the textures so we don't have to load them each time for duplicate textures
+                        if texture_path in Id2Map.Texture.texture_db:
+                            face.texture = Id2Map.Texture.texture_db[texture_path]
+                        else:
+                            # Lazily open the texture and grab the size information
+                            fp = open(texture_path)
+                            im = Image.open(fp)
+                            face.texture = Id2Map.Texture(im.size[0], im.size[1], texture_path)
+                            fp.close()
+                            Id2Map.Texture.texture_db[texture_path] = face.texture
 
                         # Setup the texture
                         face.texdef = Id2Map.TexDef()
@@ -581,9 +603,13 @@ class Id2Map:
 
                 if IdMath.DotProduct(face.plane.normal, clip.plane.normal) > 0.999 and \
                                 math.fabs(face.plane.dist - clip.plane.dist) < 0.01:
-                    # identical plane, use the later one
+                    # Id: identical plane, use the later one
+                    # This skips identical planes. Also, if we are past ourselves, then something bizzare is going on
+                    # and this brush must be invalid...
                     if past:
+                        raise Exception('WARNING: Two same planes in same brush, brush is invalid...')
                         return None;
+                    print('Same plane found in brush planes, this might be an error!')
                     continue
 
                 # flip the plane, because we want to keep the back side
@@ -595,6 +621,8 @@ class Id2Map:
                     return None;
 
             if w.numpoints < 3:
+                if Id2Map.verbose:
+                    print('face was clipped to an invalid poly less than 3 verts...')
                 w = None
 
             if w == None and Id2Map.verbose:
