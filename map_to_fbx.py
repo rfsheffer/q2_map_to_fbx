@@ -7,19 +7,70 @@ import id_map
 def add_entity_to_scene(scene, entity, brush_index):
     """
     Adds a brush as a scene node
-    :param scene: The scene to add to
+    :param scene: The scene to add the brushes to
+    :param entity: The entity to take the brushes from
+    :param brush_index: The brush index, this should be a unique ID per brush
+    :return The number of brushes added
     """
 
     # Obtain a reference to the scene's root node.
     root_node = scene.GetRootNode()
 
-    # Create a new node in the scene.
-    new_node = fbx.FbxNode.Create(scene, 'brushNode{0}'.format(brush_index))
-    root_node.AddChild(new_node)
+    for brush in entity.brushes:
 
-    # Create a new mesh node attribute in the scene, and set it as the new node's attribute
-    new_mesh = fbx.FbxMesh.Create(scene, 'brushMesh'.format(brush_index))
-    new_node.SetNodeAttribute(new_mesh)
+        # ignore requested brushes with certain textures applied
+        #if brush.faces[0].texture is not None and 'Vienna/DKwall03_5_v' in brush.faces[0].texture.texture_path:
+        #    continue
+
+        # Create a new node in the scene.
+        new_node = fbx.FbxNode.Create(scene, 'brushNode{0}'.format(brush_index))
+        root_node.AddChild(new_node)
+
+        # Create a new mesh node attribute in the scene, and set it as the new node's attribute
+        new_mesh = fbx.FbxMesh.Create(scene, 'brushMesh{0}'.format(brush_index))
+        new_node.SetNodeAttribute(new_mesh)
+
+        # accumulate all of the brush face points
+        brush_points = []
+        for face in brush.faces:
+            if face.winding is None:
+                # Not all faces work out, this is just some quake quirk or something
+                continue
+
+            for i in range(0, face.winding.numpoints):
+                point = face.winding.points[i]
+                brush_points.append(fbx.FbxVector4(point[0], point[1], point[2]))
+
+        # init the control points we are going to set
+        new_mesh.InitControlPoints(len(brush_points))
+
+        # set all control points
+        for i in range(0, len(brush_points)):
+            new_mesh.SetControlPointAt(brush_points[i], i)
+
+        # now join all the points
+        cur_poly = 0
+        cur_point = 0
+        for face in brush.faces:
+            if face.winding is None:
+                # Not all faces work out, this is just some quake quirk or something
+                continue
+
+            new_mesh.BeginPolygon(cur_poly)
+
+            for i in range(0, face.winding.numpoints):
+                new_mesh.AddPolygon(cur_point)
+                cur_point += 1
+
+            new_mesh.EndPolygon()
+            cur_poly += 1
+
+        if cur_point != len(brush_points):
+            raise Exception('Number of points plotted on polygons not the number of actual polys!')
+
+        brush_index += 1
+
+    return len(entity.brushes)
 
 
 def save_scene(filename, fbx_manager, fbx_scene, as_ascii=False):
@@ -102,10 +153,11 @@ if __name__ == '__main__':
     map_data = id_map.Id2Map()
     map_data.parse_map_file(options.input, verbose, options.textures)
 
+    brush_index = 0
     print('{0} entities parsed, creating fbx'.format(len(map_data.entities)))
     # Create a scene node per brush containing the brushes UV'd mesh
     for entity in map_data.entities:
-        add_entity_to_scene(g_fbx_scene, entity, 0)
+        brush_index += add_entity_to_scene(g_fbx_scene, entity, brush_index)
 
     # Save the scene.
     save_scene(options.output, g_fbx_manager, g_fbx_scene, True)

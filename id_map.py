@@ -7,28 +7,6 @@ import math
 import copy
 from PIL import Image
 
-'''
-===========================================================================
-Copyright (C) 1997-2006 Id Software, Inc.
-
-Some of this file is part of Quake 2 Tools source code.
-
-Quake 2 Tools source code is free software; you can redistribute it
-and/or modify it under the terms of the GNU General Public License as
-published by the Free Software Foundation; either version 2 of the License,
-or (at your option) any later version.
-
-Quake 2 Tools source code is distributed in the hope that it will be
-useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with Quake 2 Tools source code; if not, write to the Free Software
-Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-===========================================================================
-'''
-
 class IdMath:
     EQUAL_EPSILON = 0.001
     vec3_zero = [0.0, 0.0, 0.0]
@@ -141,7 +119,8 @@ class IdMath:
         # If no points are on the front, they are all clipped. Return none.
         if counts[0] == 0:
             if Id2Map.verbose:
-                print('no points lie on the front side of the clipping plane...')
+                print('no points lie on the front side of the clipping plane. '
+                      'Some maps have a fair number of these cases so it might be normal.')
             return None
 
         # If all points are on the front, clip none. Return input.
