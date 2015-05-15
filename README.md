@@ -17,7 +17,7 @@ Here is an example exported from the tool. It is the Prague North Quarter from V
 - Remove all faces which are not visible from within the hull of the map
 
 ## How I made it:
-I downloaded the quake 2 tools source code and used the QE4 source code to convert the brush plane data into UV'd polygons.
+I downloaded the quake 2 QE4 source code and used it as a reference for properly exporting the mesh data from the Quake 2 map files.
 I used the Autodesk python FBX SDK to create the FBX file.
 
 ## What you need:
