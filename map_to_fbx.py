@@ -1,8 +1,9 @@
-__author__ = 'Ryan'
-
 import optparse
 import fbx
 import id_map
+
+__author__ = 'Ryan'
+
 
 def add_entity_to_scene(scene, entity, brush_index):
     """
@@ -19,7 +20,7 @@ def add_entity_to_scene(scene, entity, brush_index):
     for brush in entity.brushes:
 
         # ignore requested brushes with certain textures applied
-        #if brush.faces[0].texture is not None and 'Vienna/DKwall03_5_v' in brush.faces[0].texture.texture_path:
+        # if brush.faces[0].texture is not None and 'Vienna/DKwall03_5_v' in brush.faces[0].texture.texture_path:
         #    continue
 
         # Create a new node in the scene.
@@ -118,25 +119,25 @@ def get_ascii_format_index(fbx_manager):
     return format_index
 
 
-if __name__ == '__main__':
-
+def main():
     # Get the necessary arguments
-    argParser = optparse.OptionParser(usage='usage: %prog -i [input dir] -o [output dir] [options]', version="%prog 0.1")
-    argParser.add_option('-o', '--output', action='store', type='string', dest='output', default=False,
-                         help='FBX output file name')
-    argParser.add_option('-i', '--input', action='store', type='string', dest='input', default=False,
-                         help='The Quake 2 or VtMR map file')
-    argParser.add_option('-t', '--textures', action='store', type='string', dest='textures', default=None,
-                         help='The textures folder (optional)')
-    argParser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False,
-                         help='Spews information about the process (takes more time)')
+    arg_parser = optparse.OptionParser(usage='usage: %prog -i [input dir] -o [output dir] [options]',
+                                       version="%prog 0.1")
+    arg_parser.add_option('-o', '--output', action='store', type='string', dest='output', default=False,
+                          help='FBX output file name')
+    arg_parser.add_option('-i', '--input', action='store', type='string', dest='input', default=False,
+                          help='The Quake 2 or VtMR map file')
+    arg_parser.add_option('-t', '--textures', action='store', type='string', dest='textures', default=None,
+                          help='The textures folder (optional)')
+    arg_parser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False,
+                          help='Spews information about the process (takes more time)')
 
-    (options, args) = argParser.parse_args()
+    (options, args) = arg_parser.parse_args()
 
-    if(options.input == False or options.output == False):
+    if not options.input or not options.output:
         print('Input and Output directories required to run this software!')
-        argParser.print_version()
-        argParser.print_help()
+        arg_parser.print_version()
+        arg_parser.print_help()
         quit()
 
     verbose = options.verbose
@@ -153,11 +154,11 @@ if __name__ == '__main__':
     map_data = id_map.Id2Map()
     map_data.parse_map_file(options.input, verbose, options.textures)
 
-    brush_index = 0
+    brush_index_in = 0
     print('{0} entities parsed, creating fbx'.format(len(map_data.entities)))
     # Create a scene node per brush containing the brushes UV'd mesh
-    for entity in map_data.entities:
-        brush_index += add_entity_to_scene(g_fbx_scene, entity, brush_index)
+    for entity_in in map_data.entities:
+        brush_index_in += add_entity_to_scene(g_fbx_scene, entity_in, brush_index_in)
 
     # Save the scene.
     save_scene(options.output, g_fbx_manager, g_fbx_scene, True)
@@ -166,3 +167,7 @@ if __name__ == '__main__':
     # all the objects that have been created with it.
     g_fbx_manager.Destroy()
     del g_fbx_manager, g_fbx_scene
+
+
+if __name__ == '__main__':
+    main()

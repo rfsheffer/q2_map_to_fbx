@@ -1,11 +1,13 @@
-__author__ = 'Ryan Sheffer'
-__credits__ = ["Id Software"]
-
 import os
 import re
 import math
 import copy
 from PIL import Image
+
+
+__author__ = 'Ryan Sheffer'
+__credits__ = ["Id Software"]
+
 
 class IdMath:
     EQUAL_EPSILON = 0.001
@@ -13,27 +15,27 @@ class IdMath:
     Q_PI = 3.14159265358979323846
 
     @staticmethod
-    def Vec3Zero():
-        return copy.deepcopy(vec3_zero)
+    def zero():
+        return copy.deepcopy(IdMath.vec3_zero)
 
     @staticmethod
-    def VectorMA(va, scale, vb, vc):
+    def multiply_add(va, scale, vb, vc):
         vc[0] = va[0] + scale * vb[0]
         vc[1] = va[1] + scale * vb[1]
         vc[2] = va[2] + scale * vb[2]
 
     @staticmethod
-    def DotProduct(x, y):
-        return (x[0] * y[0] + x[1] * y[1] + x[2] * y[2])
+    def dot_product(x, y):
+        return x[0] * y[0] + x[1] * y[1] + x[2] * y[2]
 
     @staticmethod
-    def CrossProduct(v1, v2, cross):
+    def cross_product(v1, v2, cross):
         cross[0] = v1[1] * v2[2] - v1[2] * v2[1]
         cross[1] = v1[2] * v2[0] - v1[0] * v2[2]
         cross[2] = v1[0] * v2[1] - v1[1] * v2[0]
 
     @staticmethod
-    def VectorCompare (v1, v2):
+    def compare(v1, v2):
         for i in range(0, 3):
             if math.fabs(v1[i] - v2[i]) > IdMath.EQUAL_EPSILON:
                 return False
@@ -41,7 +43,7 @@ class IdMath:
         return True
 
     @staticmethod
-    def VectorNormalize(v):
+    def normalize(v):
         length = 0.0
         for i in range(0, 3):
             length += v[i] * v[i]
@@ -55,25 +57,25 @@ class IdMath:
         return length
 
     @staticmethod
-    def VectorScale(v, scale, out):
+    def scale(v, scale, out):
         out[0] = v[0] * scale
         out[1] = v[1] * scale
         out[2] = v[2] * scale
 
     @staticmethod
-    def VectorSubtract(a, b, c):
+    def subtract(a, b, c):
         c[0] = a[0] - b[0]
         c[1] = a[1] - b[1]
         c[2] = a[2] - b[2]
 
     @staticmethod
-    def VectorAdd(a, b, c):
+    def add(a, b, c):
         c[0] = a[0] + b[0]
         c[1] = a[1] + b[1]
         c[2] = a[2] + b[2]
 
     @staticmethod
-    def VectorCopy(a, b):
+    def copy(a, b):
         b[0] = a[0]
         b[1] = a[1]
         b[2] = a[2]
@@ -86,17 +88,17 @@ class IdMath:
     SIDE_CROSS = -2
 
     @staticmethod
-    def ClipWinding(input, split, keepon):
+    def clip_winding(input_points, split, keep_on):
         # We cache off the sides the points exist in relation to the plane, there is a max number of points per poly.
-        dists = [0 for x in range(IdMath.MAX_POINTS_ON_WINDING)] # the distance from the plane to the point
-        sides = [0 for x in range(IdMath.MAX_POINTS_ON_WINDING)] # which side of the plane the point is on
+        dists = [0 for _ in range(IdMath.MAX_POINTS_ON_WINDING)]  # the distance from the plane to the point
+        sides = [0 for _ in range(IdMath.MAX_POINTS_ON_WINDING)]  # which side of the plane the point is on
         counts = [0, 0, 0]
 
         # Id: determine sides for each point
-        for i in range(0, input.numpoints):
+        for i in range(0, input_points.numpoints):
             # Get the distance to the plane from the point, and subtract the split normal distance
             # to get the translated true distance.
-            dot = IdMath.DotProduct(input.points[i], split.normal)
+            dot = IdMath.dot_product(input_points.points[i], split.normal)
             dot -= split.dist
             dists[i] = dot
             if dot > IdMath.ON_EPSILON:
@@ -109,12 +111,12 @@ class IdMath:
             counts[sides[i]] += 1
 
         # We complete the polygon loop here by assigning the last point to the first point
-        sides[input.numpoints] = sides[0];
-        dists[input.numpoints] = dists[0];
+        sides[input_points.numpoints] = sides[0]
+        dists[input_points.numpoints] = dists[0]
 
         # If all points lie directly on the planes surface and we should keep them, return them now.
-        if keepon and counts[0] == 0 and counts[1] == 0:
-            return input
+        if keep_on and counts[0] == 0 and counts[1] == 0:
+            return input_points
 
         # If no points are on the front, they are all clipped. Return none.
         if counts[0] == 0:
@@ -123,26 +125,26 @@ class IdMath:
                       'Some maps have a fair number of these cases so it might be normal.')
             return None
 
-        # If all points are on the front, clip none. Return input.
+        # If all points are on the front, clip none. Return input_points.
         if counts[1] == 0:
-            return input
+            return input_points
 
         # Create a new winding (polygon) with the potential for 4 new points from the clipping we are about to do
-        maxpts = input.numpoints + 4;	# Id: can't use counts[0] + 2 because of fp grouping errors
+        maxpts = input_points.numpoints + 4  # Id: can't use counts[0] + 2 because of fp grouping errors
         neww = Id2Map.Winding(maxpts)
 
-        for i in range(0, input.numpoints):
-            p1 = input.points[i]
+        for i in range(0, input_points.numpoints):
+            p1 = input_points.points[i]
 
             # Copy all on plane surface points directly to the new points list
             if sides[i] == IdMath.SIDE_ON:
-                IdMath.VectorCopy(p1, neww.points[neww.numpoints])
+                IdMath.copy(p1, neww.points[neww.numpoints])
                 neww.numpoints += 1
                 continue
 
             # If this point is on the front, it should be kept, so put it in the new points list
             if sides[i] == IdMath.SIDE_FRONT:
-                IdMath.VectorCopy(p1, neww.points[neww.numpoints])
+                IdMath.copy(p1, neww.points[neww.numpoints])
                 neww.numpoints += 1
 
             # If the next point is on side, or the next points side is the same as this point, no clipping required
@@ -151,12 +153,12 @@ class IdMath:
 
             # Id: generate a split point
             # If the next point is over the end, we want the first point, so use mod to wrap the index back to 0
-            p2 = input.points[(i + 1) % input.numpoints];
+            p2 = input_points.points[(i + 1) % input_points.numpoints]
 
             # determine the fraction of the distance to the plane from point 1 to point 2
             # we can then multiply the vector from point 1 to point 2 by the fraction, and add
             # back point 1, to get the position of the split
-            dot = dists[i] / (dists[i] - dists[i + 1]);
+            dot = dists[i] / (dists[i] - dists[i + 1])
             mid = [0.0, 0.0, 0.0]
             for j in range(0, 3):
                 # Id: avoid round off error when possible
@@ -167,7 +169,7 @@ class IdMath:
                 else:
                     mid[j] = p1[j] + dot * (p2[j] - p1[j])
 
-            IdMath.VectorCopy(mid, neww.points[neww.numpoints])
+            IdMath.copy(mid, neww.points[neww.numpoints])
             neww.numpoints += 1
 
         if neww.numpoints > maxpts:
@@ -175,38 +177,38 @@ class IdMath:
 
         return neww
 
-    baseaxis = [[0,0,1], [1,0,0], [0,-1,0],			# floor
-                [0,0,-1], [1,0,0], [0,-1,0],		# ceiling
-                [1,0,0], [0,1,0], [0,0,-1],			# west wall
-                [-1,0,0], [0,1,0], [0,0,-1],		# east wall
-                [0,1,0], [1,0,0], [0,0,-1],			# south wall
-                [0,-1,0], [1,0,0], [0,0,-1]]		# north wall
+    baseaxis = [[0, 0, 1], [1, 0, 0], [0, -1, 0],			# floor
+                [0, 0, -1], [1, 0, 0], [0, -1, 0],		# ceiling
+                [1, 0, 0], [0, 1, 0], [0, 0, -1],			# west wall
+                [-1, 0, 0], [0, 1, 0], [0, 0, -1],		# east wall
+                [0, 1, 0], [1, 0, 0], [0, 0, -1],			# south wall
+                [0, -1, 0], [1, 0, 0], [0, 0, -1]]		# north wall
 
     @staticmethod
-    def TextureAxisFromPlane(pln, xv, yv):
-        best = 0;
-        bestaxis = 0;
+    def texture_axis_from_plane(pln, xv, yv):
+        best = 0
+        bestaxis = 0
 
         for i in range(0, 6):
-            dot = IdMath.DotProduct(pln.normal, IdMath.baseaxis[i * 3]);
+            dot = IdMath.dot_product(pln.normal, IdMath.baseaxis[i * 3])
             if dot > best:
                 best = dot
                 bestaxis = i
 
-        IdMath.VectorCopy(IdMath.baseaxis[bestaxis * 3 + 1], xv);
-        IdMath.VectorCopy(IdMath.baseaxis[bestaxis * 3 + 2], yv);
+        IdMath.copy(IdMath.baseaxis[bestaxis * 3 + 1], xv)
+        IdMath.copy(IdMath.baseaxis[bestaxis * 3 + 2], yv)
 
     @staticmethod
-    def BeginTexturingFace(b, f):
+    def begin_texturing_face(_, f):
         out_vecs = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
         pvecs = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
         # get natural texture axis
-        IdMath.TextureAxisFromPlane(f.plane, pvecs[0], pvecs[1])
+        IdMath.texture_axis_from_plane(f.plane, pvecs[0], pvecs[1])
 
         # set shading for face
         # This is an editor thing to give depth to the scene, should just get rid of it
-        shade = 0.0 #SetShadeForPlane(f.plane)
+        shade = 0.0  # SetShadeForPlane(f.plane)
         f.color[0] = f.color[1] = f.color[2] = shade
 
         if f.texdef.scale[0] == 0.0:
@@ -229,8 +231,8 @@ class IdMath:
             cosv = 0
         else:
             ang = f.texdef.rotate / 180.0 * IdMath.Q_PI
-            sinv = sin(ang)
-            cosv = cos(ang)
+            sinv = math.sin(ang)
+            cosv = math.cos(ang)
 
         if pvecs[0][0]:
             sv = 0
@@ -248,22 +250,22 @@ class IdMath:
 
         for i in range(0, 2):
             ns = cosv * pvecs[i][sv] - sinv * pvecs[i][tv]
-            nt = sinv * pvecs[i][sv] +  cosv * pvecs[i][tv]
+            nt = sinv * pvecs[i][sv] + cosv * pvecs[i][tv]
             out_vecs[i][sv] = ns
             out_vecs[i][tv] = nt
 
         for i in range(0, 2):
             for j in range(0, 3):
-                out_vecs[i][j] = out_vecs[i][j] / f.texdef.scale[i];
+                out_vecs[i][j] = out_vecs[i][j] / f.texdef.scale[i]
 
         return out_vecs
 
     @staticmethod
-    def EmitTextureCoordinates(xyzst, texture, face):
+    def emit_texture_coordinates(xyzst, texture, face):
         vecs = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
         # get natural texture axis
-        IdMath.TextureAxisFromPlane(face.plane, vecs[0], vecs[1])
+        IdMath.texture_axis_from_plane(face.plane, vecs[0], vecs[1])
 
         td = face.texdef
 
@@ -276,11 +278,11 @@ class IdMath:
         if td.scale[1] == 0:
             td.scale[1] = 1
 
-        s = IdMath.DotProduct(xyzst, vecs[0])
-        t = IdMath.DotProduct(xyzst, vecs[1])
+        s = IdMath.dot_product(xyzst, vecs[0])
+        t = IdMath.dot_product(xyzst, vecs[1])
 
         ns = cosv * s - sinv * t
-        nt = sinv * s +  cosv * t
+        nt = sinv * s + cosv * t
 
         s = ns / td.scale[0] + td.shift[0]
         t = nt / td.scale[1] + td.shift[1]
@@ -291,6 +293,7 @@ class IdMath:
 
         xyzst[3] = s
         xyzst[4] = t
+
 
 class Id2Map:
     """
@@ -305,10 +308,12 @@ class Id2Map:
     def __init__(self):
         self.entities = []
 
-    def parse_map_file(self, map_file_name, verbose = False, textures_path = None):
+    def parse_map_file(self, map_file_name, verbose=False, textures_path=None):
         """
         Parses a map file
         :param map_file_name: The name of the file to parse
+        :param verbose: Print out issues found
+        :param textures_path: Path to lookup textures
         """
         # this is an optional path. If it is not supplied, the texture UVs are not generated.
         Id2Map.textures_path = textures_path
@@ -388,12 +393,12 @@ class Id2Map:
                 t2[i] = plane_points[2][i] - plane_points[1][i]
                 t3[i] = plane_points[1][i]
 
-            IdMath.CrossProduct(t1, t2, self.normal)
-            if IdMath.VectorCompare(self.normal, IdMath.vec3_zero):
+            IdMath.cross_product(t1, t2, self.normal)
+            if IdMath.compare(self.normal, IdMath.vec3_zero):
                 raise Exception('WARNING: brush plane with no normal')
 
-            IdMath.VectorNormalize(self.normal)
-            self.dist = IdMath.DotProduct(t3, self.normal)
+            IdMath.normalize(self.normal)
+            self.dist = IdMath.dot_product(t3, self.normal)
 
     class Winding:
         BOGUS_RANGE = 18000
@@ -401,13 +406,12 @@ class Id2Map:
         """
         From the plane data, the points that make up the brush
         """
-        def __init__(self, maxpoints = 8):
+        def __init__(self, maxpoints=8):
             self.numpoints = 0
             self.maxpoints = maxpoints
-            self.points = [] # list of xyzst lists
+            self.points = []  # list of xyzst lists
             for i in range(0, maxpoints):
                 self.points.append([0.0, 0.0, 0.0, 0.0, 0.0])
-
 
         @staticmethod
         def base_poly_for_plane(ref_plane):
@@ -417,13 +421,13 @@ class Id2Map:
             vup = [0.0, 0.0, 0.0]
 
             # find the major axis
-            max = -Id2Map.Winding.BOGUS_RANGE
+            found_max = -Id2Map.Winding.BOGUS_RANGE
             x = -1
             for i in range(0, 3):
-                v = math.fabs(ref_plane.normal[i]);
-                if v > max:
+                v = math.fabs(ref_plane.normal[i])
+                if v > found_max:
                     x = i
-                    max = v
+                    found_max = v
 
             if x == -1:
                 raise Exception('BasePolyForPlane: no axis found')
@@ -433,35 +437,34 @@ class Id2Map:
             elif x == 2:
                 vup[0] = 1.0
 
-            v = IdMath.DotProduct(vup, ref_plane.normal)
-            IdMath.VectorMA(vup, -v, ref_plane.normal, vup)
-            IdMath.VectorNormalize(vup);
+            v = IdMath.dot_product(vup, ref_plane.normal)
+            IdMath.multiply_add(vup, -v, ref_plane.normal, vup)
+            IdMath.normalize(vup)
 
-            IdMath.VectorScale(ref_plane.normal, ref_plane.dist, org)
+            IdMath.scale(ref_plane.normal, ref_plane.dist, org)
 
-            IdMath.CrossProduct(vup, ref_plane.normal, vright)
+            IdMath.cross_product(vup, ref_plane.normal, vright)
 
-            IdMath.VectorScale(vup, 8192.0, vup);
-            IdMath.VectorScale(vright, 8192.0, vright);
+            IdMath.scale(vup, 8192.0, vup)
+            IdMath.scale(vright, 8192.0, vright)
 
             # project a really big axis aligned box onto the plane
             w = Id2Map.Winding(4)
             w.numpoints = 4
 
-            IdMath.VectorSubtract(org, vright, w.points[0])
-            IdMath.VectorAdd(w.points[0], vup, w.points[0])
+            IdMath.subtract(org, vright, w.points[0])
+            IdMath.add(w.points[0], vup, w.points[0])
 
-            IdMath.VectorAdd(org, vright, w.points[1])
-            IdMath.VectorAdd(w.points[1], vup, w.points[1])
+            IdMath.add(org, vright, w.points[1])
+            IdMath.add(w.points[1], vup, w.points[1])
 
-            IdMath.VectorAdd(org, vright, w.points[2])
-            IdMath.VectorSubtract(w.points[2], vup, w.points[2])
+            IdMath.add(org, vright, w.points[2])
+            IdMath.subtract(w.points[2], vup, w.points[2])
 
-            IdMath.VectorSubtract(org, vright, w.points[3])
-            IdMath.VectorSubtract(w.points[3], vup, w.points[3])
+            IdMath.subtract(org, vright, w.points[3])
+            IdMath.subtract(w.points[3], vup, w.points[3])
 
             return w
-
 
     class Face:
         """
@@ -492,11 +495,11 @@ class Id2Map:
             self.faces = []
 
         def add_face(self, face_line):
-            brush_plane_re = re.compile('\(\s([\s|\d|\-|.]+)\s\)\s' # point 1
-                                        '\(\s([\s|\d|\-|.]+)\s\)\s' # point 2
-                                        '\(\s([\s|\d|\-|.]+)\s\)\s' # point 3
-                                        '([\w|/|\d]+)\s'            # texture name
-                                        '([\d|\s|.|\-]+)')          # texture params
+            brush_plane_re = re.compile('\(\s([\s|\d|\-|.]+)\s\)\s'  # point 1
+                                        '\(\s([\s|\d|\-|.]+)\s\)\s'  # point 2
+                                        '\(\s([\s|\d|\-|.]+)\s\)\s'  # point 3
+                                        '([\w|/|\d]+)\s'             # texture name
+                                        '([\d|\s|.|\-]+)')           # texture params
             match = brush_plane_re.match(face_line)
             if match is not None:
                 face = Id2Map.Face()
@@ -534,19 +537,19 @@ class Id2Map:
                 # add to face list
                 self.faces.append(face)
             else:
-                raise Exception('WARNING: Could not parse face line {0}'.format(line))
+                raise Exception('WARNING: Could not parse face line {0}'.format(face_line))
 
         def make_face_windings(self):
             """ creates the visible polygons on the faces """
             for face in self.faces:
                 face.winding = self.make_face_winding(face)
-                if face.winding == None:
+                if face.winding is None:
                     continue
 
                 # add to bounding box
                 for i in range(0, face.winding.numpoints):
                     for j in range(0, 3):
-                        v = face.winding.points[i][j];
+                        v = face.winding.points[i][j]
                         if v > self.maxs[j]:
                             self.maxs[j] = v
                         if v < self.mins[j]:
@@ -556,10 +559,10 @@ class Id2Map:
                 if face.texdef is not None and face.texture is not None:
                     # setup s and t vectors, and set color
                     # TODO: I am not sure what this does... Even in the original QE4 code it seems pointless...
-                    #out_vecs = IdMath.BeginTexturingFace(self, face)
+                    # out_vecs = IdMath.BeginTexturingFace(self, face)
 
                     for i in range(0, face.winding.numpoints):
-                        IdMath.EmitTextureCoordinates(face.winding.points[i], face.texture, face)
+                        IdMath.emit_texture_coordinates(face.winding.points[i], face.texture, face)
 
         def make_face_winding(self, face):
             """
@@ -580,31 +583,30 @@ class Id2Map:
                     past = True
                     continue
 
-                if IdMath.DotProduct(face.plane.normal, clip.plane.normal) > 0.999 and \
+                if IdMath.dot_product(face.plane.normal, clip.plane.normal) > 0.999 and \
                                 math.fabs(face.plane.dist - clip.plane.dist) < 0.01:
                     # Id: identical plane, use the later one
                     # This skips identical planes. Also, if we are past ourselves, then something bizzare is going on
                     # and this brush must be invalid...
                     if past:
                         raise Exception('WARNING: Two same planes in same brush, brush is invalid...')
-                        return None;
                     print('Same plane found in brush planes, this might be an error!')
                     continue
 
                 # flip the plane, because we want to keep the back side
-                IdMath.VectorSubtract(IdMath.vec3_zero, clip.plane.normal, plane.normal)
+                IdMath.subtract(IdMath.vec3_zero, clip.plane.normal, plane.normal)
                 plane.dist = -clip.plane.dist
 
-                w = IdMath.ClipWinding(w, plane, False)
-                if w == None:
-                    return None;
+                w = IdMath.clip_winding(w, plane, False)
+                if w is None:
+                    return None
 
             if w.numpoints < 3:
                 if Id2Map.verbose:
                     print('face was clipped to an invalid poly less than 3 verts...')
                 w = None
 
-            if w == None and Id2Map.verbose:
+            if w is None and Id2Map.verbose:
                 print('unused plane...')
 
             return w
@@ -619,8 +621,7 @@ class Id2Map:
             self.parse_entity(entity_lines)
 
         def parse_entity(self, entity_lines):
-            struc_level = 0 # 1 = in entity, 2 = in brush
-            in_brush = False
+            struc_level = 0  # 1 = in entity, 2 = in brush
             param_re = re.compile('\"([\w|\d|\s|!|#-/|:-@|[-`|{-~]+)\"\s+\"([\w|\d|\s|!|#-/|:-@|[-`|{-~]*)\"')
 
             for line in entity_lines:
